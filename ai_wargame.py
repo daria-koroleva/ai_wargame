@@ -319,12 +319,80 @@ class Game:
         unit = self.get(coords.dst)
         return (unit is None)
 
+    def is_valid_attack(self,coords: CoordPair) -> bool:
+        """Validate if a move is a valid attack"""    
+        if not self.is_valid_coord(coords.src) or not self.is_valid_coord(coords.dst):
+            return False
+        unit_s = self.get(coords.src)
+        unit_t = self.get(coords.dst)
+        #validate if s and t are adversaries
+        if unit_s is None or unit_t is None:
+            return False
+        if unit_s.player == unit_t.player:
+            return False
+        #Validate if T is adjacent to S
+        for adj in coords.src.iter_adjacent():
+            if coords.dst == adj:                
+                return True            
+        return False
+    
+    def is_valid_repair(self,coords: CoordPair) -> bool:
+        """Validate if a move is a valid repair"""    
+        if not self.is_valid_coord(coords.src) or not self.is_valid_coord(coords.dst):
+            return False
+        unit_s = self.get(coords.src)
+        unit_t = self.get(coords.dst)
+        if unit_s is None or unit_t is None:
+            return False
+        #validate if s and t are friendly
+        if unit_s.player != unit_t.player:
+            return False
+        #validate if S can repair T
+        repair_on_t=unit_s.repair_amount(unit_t)
+        if repair_on_t == 0:
+            return False
+        #Validate if T is adjacent to S
+        for adj in coords.src.iter_adjacent():
+            if coords.dst == adj:                
+                return True
+        return False
+    
+    def can_self_destruct(self, coords: CoordPair) -> bool:
+        """Validate for self-destruction"""
+        if not self.is_valid_coord(coords.src) or not self.is_valid_coord(coords.dst):
+            return False
+        unit = self.get(coords.src)
+        if unit is None:
+            return False
+        if coords.src == coords.dst:
+            return True
+        return False
+
     def perform_move(self, coords : CoordPair) -> Tuple[bool,str]:
-        """Validate and perform a move expressed as a CoordPair. TODO: WRITE MISSING CODE!!!"""
+        """Validate and perform a move expressed as a CoordPair."""
         if self.is_valid_move(coords):
             self.set(coords.dst,self.get(coords.src))
             self.set(coords.src,None)
             return (True,"")
+        elif self.is_valid_attack(coords):
+            unit_s = self.get(coords.src)
+            unit_t = self.get(coords.dst)
+            damage_on_t=unit_s.damage_amount(unit_t)
+            damage_on_s=unit_t.damage_amount(unit_s)
+            self.mod_health(coords.src,-damage_on_s)
+            self.mod_health(coords.dst,-damage_on_t)
+            return (True, "")
+        elif self.is_valid_repair(coords):
+            unit_s = self.get(coords.src)
+            unit_t = self.get(coords.dst)
+            repair_on_t=unit_s.repair_amount(unit_t)
+            self.mod_health(coords.dst,repair_on_t)
+            return (True, "")
+        elif self.can_self_destruct(coords):
+            self.mod_health(coords.src,-9)
+            for surrounding_coord in coords.src.iter_range(1):
+                self.mod_health(surrounding_coord,-2)
+            return (True, "")
         return (False,"invalid move")
 
     def next_turn(self):
