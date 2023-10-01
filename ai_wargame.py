@@ -260,6 +260,8 @@ class Game:
     _attacker_has_ai: bool = True
     _defender_has_ai: bool = True
 
+    actions: list[str] = field(default_factory=list)  # Store game actions
+
     def __post_init__(self):
         """Automatically called after class init to set up the default board state."""
 
@@ -386,7 +388,8 @@ class Game:
         if self.is_valid_move(coords):
             self.set(coords.dst, self.get(coords.src))
             self.set(coords.src, None)
-            action_taken_str = f"{coords.src} -> {coords.dst}"
+            action_taken_str = f"{self.next_player.name} - turn #{self.turns_played}: {coords.src} -> {coords.dst}"
+            self.actions.append(action_taken_str)
             return (True, "")
 
         elif self.is_valid_attack(coords):
@@ -646,6 +649,9 @@ def main():
     if args.broker is not None:
         options.broker = args.broker
 
+    # Create an empty list to store game actions
+    game_actions = []
+
     # create a new game
     game = Game(options=options)
 
@@ -673,26 +679,40 @@ def main():
                 print("Computer doesn't know what to do!!!")
                 exit(1)
 
+    # Append the actions taken in this turn to the list
+    game_actions.extend(game.actions)
+
     game = Game()
-    with open(options.file_name, 'w') as file:
-        file.write("The Game parameters" + "\n")
+    max_time_str = str(options.max_time)
+    game_type_str = str(options.game_type)
+    max_turns_str = str(options.max_turns)
 
-        max_time_str = str(options.max_time)
-        game_type_str = str(options.game_type)
-        max_turns_str = str(options.max_turns)
+    P1 = "max_time: " + max_time_str + "\n"
+    P2 = "game_type: " + game_type_str + "\n"
+    P3 = "max_time: " + max_turns_str + "\n"
+    P4 = "the winner is: " + winner.name + "\n"
 
-        P1 = "max_time: " + max_time_str + "\n"
-        P2 = "game_type: " + game_type_str + "\n"
-        P3 = "max_time: " + max_turns_str + "\n"
-        P4 = "the winner is: " + winner.name + "\n"
 
-        file.write(P1 + P2 + P3 + "\n" + "\n")
-        file.write("Initial Board Configuration" + "\n"+ "\n")
+
+    output_file_name = f"gameTrace-player1=H-player2=H-MaxTime={game.options.max_time}-MaxTurns={game.options.max_turns}.txt"
+    with open(output_file_name, 'w') as output_file:
+        output_file.write(P1 + P2 + P3 + "\n" + "\n")
+
+        output_file.write("Initial Board Configuration" + "\n" + "\n")
         for row in game.board:
-            file.write(" ".join(str(item) for item in row) + "\n")
-        file.write("\n"+ "\n")
-        file.write(P4)
+            output_file.write(" ".join(str(item) for item in row) + "\n")
 
+        output_file.write( "\n" + "\n")
+
+        output_file.write("game actions" + "\n" + "\n")
+        for action in game_actions:
+            output_file.write(action + "\n")
+
+        output_file.write("\n" + "\n")
+        output_file.write(P4)
+
+        # Close the output file
+    output_file.close()
 
 
 
