@@ -9,7 +9,6 @@ from time import sleep
 from typing import Tuple, TypeVar, Type, Iterable, ClassVar
 import random
 import requests
-import self
 
 # maximum and minimum values for our heuristic scores (usually represents an end of game condition)
 MAX_HEURISTIC_SCORE = 2000000000
@@ -388,8 +387,6 @@ class Game:
         if self.is_valid_move(coords):
             self.set(coords.dst, self.get(coords.src))
             self.set(coords.src, None)
-            action_taken_str = f"{self.next_player.name} - turn #{self.turns_played}: {coords.src} -> {coords.dst}"
-            self.actions.append(action_taken_str)
             return (True, "")
 
         elif self.is_valid_attack(coords):
@@ -400,12 +397,14 @@ class Game:
             self.mod_health(coords.src, -damage_on_s)
             self.mod_health(coords.dst, -damage_on_t)
             return (True, "")
+
         elif self.is_valid_repair(coords):
             unit_s = self.get(coords.src)
             unit_t = self.get(coords.dst)
             repair_on_t = unit_s.repair_amount(unit_t)
             self.mod_health(coords.dst, repair_on_t)
             return (True, "")
+
         elif self.can_self_destruct(coords):
             self.mod_health(coords.src, -9)
             for surrounding_coord in coords.src.iter_range(1):
@@ -462,6 +461,8 @@ class Game:
             s = input(F'Player {self.next_player.name}, enter your move: ')
             coords = CoordPair.from_string(s)
             if coords is not None and self.is_valid_coord(coords.src) and self.is_valid_coord(coords.dst):
+                action_taken_str = f"{self.next_player.name} - turn #{self.turns_played}: {coords.src} -> {coords.dst}"
+                self.actions.append(action_taken_str)
                 return coords
             else:
                 print('Invalid coordinates! Try again.')
@@ -688,13 +689,14 @@ def main():
     max_turns_str = str(options.max_turns)
 
     P1 = "max_time: " + max_time_str + "\n"
-    P2 = "game_type: " + game_type_str + "\n"
-    P3 = "max_time: " + max_turns_str + "\n"
+    P2 = "game_type: " + game_type_str + "\n" + "Player1 = H, Player2 = H" + "\n"
+    P3 = "max_turns: " + max_turns_str + "\n"
     P4 = "the winner is: " + winner.name + "\n"
+          # + "in" + f"{Game.turns_played} turns")
 
 
 
-    output_file_name = f"gameTrace-player1=H-player2=H-MaxTime={game.options.max_time}-MaxTurns={game.options.max_turns}.txt"
+    output_file_name = f"gameTrace-false-{game.options.max_time}-{game.options.max_turns}.txt"
     with open(output_file_name, 'w') as output_file:
         output_file.write("The game parameters" + "\n" + "\n")
         output_file.write(P1 + P2 + P3 + "\n" + "\n")
