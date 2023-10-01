@@ -450,6 +450,31 @@ class Game:
                     output += f"{str(unit):^3} "
             output += "\n"
         return output
+    
+    def get_configuration(self) -> str:
+        """Pretty text representation of the game configuration."""
+        dim = self.options.dim
+        output = ""      
+        coord = Coord()
+        output += "\n   "
+        for col in range(dim):
+            coord.col = col
+            label = coord.col_string()
+            output += f"{label:^3} "
+        output += "\n"
+        for row in range(dim):
+            coord.row = row
+            label = coord.row_string()
+            output += f"{label}: "
+            for col in range(dim):
+                coord.col = col
+                unit = self.get(coord)
+                if unit is None:
+                    output += " .  "
+                else:
+                    output += f"{str(unit):^3} "
+            output += "\n"
+        return output
 
     def __str__(self) -> str:
         """Default string representation of a game."""
@@ -467,9 +492,7 @@ class Game:
         while True:
             s = input(F'Player {self.next_player.name}, enter your move: ')
             coords = CoordPair.from_string(s)
-            if coords is not None and self.is_valid_coord(coords.src) and self.is_valid_coord(coords.dst):                
-                #action_taken_str = f"{self.next_player.name} - turn #{self.turns_played}: {coords.src} -> {coords.dst}"
-                #self.actions.append(action_taken_str)
+            if coords is not None and self.is_valid_coord(coords.src) and self.is_valid_coord(coords.dst):
                 return coords
             else:
                 print('Invalid coordinates! Try again.')
@@ -667,7 +690,8 @@ def main():
     while True:
         print()
         print(game)
-        game.actions.append(game.to_string());
+        #add configuration for output file to the list
+        game.actions.append(game.get_configuration());
 
         winner = game.has_winner()
         if winner is not None:
@@ -691,7 +715,6 @@ def main():
     # Append the actions taken in this turn to the list
     game_actions.extend(game.actions)
 
-    #game = Game()
     max_time_str = str(options.max_time)
     game_type_str = str(options.game_type)
     max_turns_str = str(options.max_turns)
@@ -702,20 +725,12 @@ def main():
     P4 = "the winner is: " + winner.name + "\n in " + str(game.turns_played) + " turns"
 
 
-
     output_file_name = f"gameTrace-false-{game.options.max_time}-{game.options.max_turns}.txt"
     with open(output_file_name, 'w') as output_file:
         output_file.write("The game parameters" + "\n" + "\n")
         output_file.write(P1 + P2 + P3 + "\n" + "\n")
 
         output_file.write("Initial Board Configuration" + "\n" + "\n")
-        #for row in game.board:
-        #    output_file.write(" ".join(str(item) for item in row) + "\n")        
-        #output_file.write(" ".join(str(item) for item in row) + "\n")
-
-        output_file.write( "\n" + "\n")
-
-        #output_file.write("game actions" + "\n" + "\n")
         for action in game_actions:
             output_file.write(action + "\n")
 
