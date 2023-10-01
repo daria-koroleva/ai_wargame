@@ -387,7 +387,7 @@ class Game:
         if self.is_valid_move(coords):
             self.set(coords.dst, self.get(coords.src))
             self.set(coords.src, None)
-            action_taken_str = f"{self.next_player.name} - turn #{self.turns_played}: move {coords.src} -> {coords.dst}"
+            action_taken_str = f"{self.next_player.name} - turn #{self.turns_played+1}: move {coords.src} -> {coords.dst}"            
             self.actions.append(action_taken_str)
             return (True, "")
 
@@ -398,7 +398,7 @@ class Game:
             damage_on_s = unit_t.damage_amount(unit_s)
             self.mod_health(coords.src, -damage_on_s)
             self.mod_health(coords.dst, -damage_on_t)
-            action_taken_str = f"{self.next_player.name} - turn #{self.turns_played}: attack {coords.src} -> {coords.dst}"
+            action_taken_str = f"{self.next_player.name} - turn #{self.turns_played+1}: attack {coords.src} -> {coords.dst}"
             self.actions.append(action_taken_str)
             return (True, "")
 
@@ -407,14 +407,14 @@ class Game:
             unit_t = self.get(coords.dst)
             repair_on_t = unit_s.repair_amount(unit_t)
             self.mod_health(coords.dst, repair_on_t)
-            action_taken_str = f"{self.next_player.name} - turn #{self.turns_played}: repair {coords.src} -> {coords.dst}"
+            action_taken_str = f"{self.next_player.name} - turn #{self.turns_played+1}: repair {coords.src} -> {coords.dst}"
             self.actions.append(action_taken_str)
             return (True, "")
         elif self.can_self_destruct(coords):
             self.mod_health(coords.src, -9)
             for surrounding_coord in coords.src.iter_range(1):
                 self.mod_health(surrounding_coord, -2)
-            action_taken_str = f"{self.next_player.name} - turn #{self.turns_played}: self-destruct {coords.src} -> {coords.dst}"
+            action_taken_str = f"{self.next_player.name} - turn #{self.turns_played+1}: self-destruct {coords.src} -> {coords.dst}"
             self.actions.append(action_taken_str)
             return (True, "")
         return (False, "invalid move")
@@ -667,6 +667,7 @@ def main():
     while True:
         print()
         print(game)
+        game.actions.append(game.to_string());
 
         winner = game.has_winner()
         if winner is not None:
@@ -690,7 +691,7 @@ def main():
     # Append the actions taken in this turn to the list
     game_actions.extend(game.actions)
 
-    game = Game()
+    #game = Game()
     max_time_str = str(options.max_time)
     game_type_str = str(options.game_type)
     max_turns_str = str(options.max_turns)
@@ -698,8 +699,7 @@ def main():
     P1 = "max_time: " + max_time_str + "\n"
     P2 = "game_type: " + game_type_str + "\n" + "Player1 = H, Player2 = H" + "\n"
     P3 = "max_turns: " + max_turns_str + "\n"
-    P4 = "the winner is: " + winner.name + "\n"
-          # + "in" + f"{Game.turns_played} turns")
+    P4 = "the winner is: " + winner.name + "\n in " + str(game.turns_played) + " turns"
 
 
 
@@ -709,12 +709,13 @@ def main():
         output_file.write(P1 + P2 + P3 + "\n" + "\n")
 
         output_file.write("Initial Board Configuration" + "\n" + "\n")
-        for row in game.board:
-            output_file.write(" ".join(str(item) for item in row) + "\n")
+        #for row in game.board:
+        #    output_file.write(" ".join(str(item) for item in row) + "\n")        
+        #output_file.write(" ".join(str(item) for item in row) + "\n")
 
         output_file.write( "\n" + "\n")
 
-        output_file.write("game actions" + "\n" + "\n")
+        #output_file.write("game actions" + "\n" + "\n")
         for action in game_actions:
             output_file.write(action + "\n")
 
