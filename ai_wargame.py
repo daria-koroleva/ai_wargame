@@ -387,6 +387,8 @@ class Game:
         if self.is_valid_move(coords):
             self.set(coords.dst, self.get(coords.src))
             self.set(coords.src, None)
+            action_taken_str = f"{self.next_player.name} - turn #{self.turns_played}: move {coords.src} -> {coords.dst}"
+            self.actions.append(action_taken_str)
             return (True, "")
 
         elif self.is_valid_attack(coords):
@@ -396,6 +398,8 @@ class Game:
             damage_on_s = unit_t.damage_amount(unit_s)
             self.mod_health(coords.src, -damage_on_s)
             self.mod_health(coords.dst, -damage_on_t)
+            action_taken_str = f"{self.next_player.name} - turn #{self.turns_played}: attack {coords.src} -> {coords.dst}"
+            self.actions.append(action_taken_str)
             return (True, "")
 
         elif self.is_valid_repair(coords):
@@ -403,12 +407,15 @@ class Game:
             unit_t = self.get(coords.dst)
             repair_on_t = unit_s.repair_amount(unit_t)
             self.mod_health(coords.dst, repair_on_t)
+            action_taken_str = f"{self.next_player.name} - turn #{self.turns_played}: repair {coords.src} -> {coords.dst}"
+            self.actions.append(action_taken_str)
             return (True, "")
-
         elif self.can_self_destruct(coords):
             self.mod_health(coords.src, -9)
             for surrounding_coord in coords.src.iter_range(1):
                 self.mod_health(surrounding_coord, -2)
+            action_taken_str = f"{self.next_player.name} - turn #{self.turns_played}: self-destruct {coords.src} -> {coords.dst}"
+            self.actions.append(action_taken_str)
             return (True, "")
         return (False, "invalid move")
 
@@ -460,9 +467,9 @@ class Game:
         while True:
             s = input(F'Player {self.next_player.name}, enter your move: ')
             coords = CoordPair.from_string(s)
-            if coords is not None and self.is_valid_coord(coords.src) and self.is_valid_coord(coords.dst):
-                action_taken_str = f"{self.next_player.name} - turn #{self.turns_played}: {coords.src} -> {coords.dst}"
-                self.actions.append(action_taken_str)
+            if coords is not None and self.is_valid_coord(coords.src) and self.is_valid_coord(coords.dst):                
+                #action_taken_str = f"{self.next_player.name} - turn #{self.turns_played}: {coords.src} -> {coords.dst}"
+                #self.actions.append(action_taken_str)
                 return coords
             else:
                 print('Invalid coordinates! Try again.')
@@ -475,8 +482,8 @@ class Game:
                 mv = self.get_move_from_broker()
                 if mv is not None:
                     (success, result) = self.perform_move(mv)
-                    print(f"Broker {self.next_player.name}: ", end='')
-                    print(result)
+                    print(f"Broker {self.next_player.name}: ", end='')                    
+                    print(result)                    
                     if success:
                         self.next_turn()
                         break
