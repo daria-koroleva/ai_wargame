@@ -696,6 +696,7 @@ def main():
 
     output_file_name = f"gameTrace-player1=H-player2=H-MaxTime={game.options.max_time}-MaxTurns={game.options.max_turns}.txt"
     with open(output_file_name, 'w') as output_file:
+        output_file.write("The game parameters" + "\n" + "\n")
         output_file.write(P1 + P2 + P3 + "\n" + "\n")
 
         output_file.write("Initial Board Configuration" + "\n" + "\n")
