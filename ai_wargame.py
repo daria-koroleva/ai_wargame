@@ -1,7 +1,6 @@
 from __future__ import annotations
 import argparse
 import copy
-import os
 from datetime import datetime
 from enum import Enum
 from dataclasses import dataclass, field
@@ -234,8 +233,6 @@ class Options:
     max_turns: int | None = 100
     randomize_moves: bool = True
     broker: str | None = None
-
-    file_name = f"gameTrace-player1=H-player2=H-MaxTime={max_time}-MaxTurns={max_turns}.txt"
 
 ##############################################################################################################
 
