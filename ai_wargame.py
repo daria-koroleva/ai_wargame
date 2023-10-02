@@ -321,14 +321,43 @@ class Game:
             self.remove_dead(coord)
 
     def is_valid_move(self, coords: CoordPair) -> bool:
-        """Validate a move expressed as a CoordPair. TODO: WRITE MISSING CODE!!!"""
+        """Validate a move expressed as a CoordPair"""
         if not self.is_valid_coord(coords.src) or not self.is_valid_coord(coords.dst):
             return False
         unit = self.get(coords.src)
         if unit is None or unit.player != self.next_player:
             return False
         unit = self.get(coords.dst)
-        return (unit is None)
+        
+        #Verify free destination
+        if unit is not None:
+            return False
+               
+        #Verify move up or left
+        unit = self.get(coords.src)
+        if unit.player == Player.Attacker:
+            if unit.type in {UnitType.AI, UnitType.Firewall, UnitType.Program}:
+                if coords.dst.row > coords.src.row or coords.dst.col > coords.src.col:
+                    return False 
+
+        #Verify move down or right
+        if unit.player == Player.Defender:
+            if unit.type in {UnitType.AI, UnitType.Firewall, UnitType.Program}:
+                if coords.dst.row < coords.src.row or coords.dst.col < coords.src.col:
+                    return False
+                
+        #Verify engagment in combat 
+        for adj_coord in coords.src.iter_adjacent():
+            adj_unit = self.get(adj_coord)
+            if unit.type in {UnitType.AI, UnitType.Firewall, UnitType.Program} and adj_unit is not None and adj_unit.player!=unit.player:
+                return False
+            
+        #verify it is adjacent to prevent diagonal move and more than one unit move
+        for adj_coord in coords.src.iter_adjacent():            
+            if coords.dst == adj_coord:
+                return True
+                        
+        return False  
 
     def is_valid_attack(self, coords: CoordPair) -> bool:
         """Validate if a move is a valid attack"""
@@ -688,7 +717,7 @@ def main():
         print()
         print(game)
         #add configuration for output file to the list
-        game.actions.append(game.get_configuration());
+        game.actions.append(game.get_configuration())
 
         winner = game.has_winner()
         if winner is not None:
