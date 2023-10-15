@@ -42,8 +42,86 @@ class GameType(Enum):
     CompVsDefender = 2
     CompVsComp = 3
 
+    
+    #### HEURISTIC E0 #######
+    def e0(game_state):
+    # Initialize scores for Player 1 and Player 2
+        score_p1 = 0
+        score_p2 = 0
 
-##############################################################################################################
+    #  weights for different units
+        weight_vp = 3
+        weight_tp = 3
+        weight_fp = 3
+        weight_pp = 3
+        weight_aip = 9999
+
+    # to calculate the scores
+        for player, units in game_state.items():
+            for unit_type, unit_count in units.items():
+                if player == 1:
+                    # Calculate the score for Player 1
+                    if unit_type == 'VP':
+                        score_p1 += weight_vp * unit_count
+                    elif unit_type == 'TP':
+                        score_p1 += weight_tp * unit_count
+                    elif unit_type == 'FP':
+                        score_p1 += weight_fp * unit_count
+                    elif unit_type == 'PP':
+                        score_p1 += weight_pp * unit_count
+                    elif unit_type == 'AIP':
+                        score_p1 += weight_aip * unit_count
+                else:
+                    # Calculate the score for Player 2
+                    if unit_type == 'VP':
+                        score_p2 += weight_vp * unit_count
+                    elif unit_type == 'TP':
+                        score_p2 += weight_tp * unit_count
+                    elif unit_type == 'FP':
+                        score_p2 += weight_fp * unit_count
+                    elif unit_type == 'PP':
+                        score_p2 += weight_pp * unit_count
+                    elif unit_type == 'AIP':
+                        score_p2 += weight_aip * unit_count
+    
+        # e0 = the score difference
+                e0_value = score_p1 - score_p2
+    
+                return e0_value
+
+    #### HEURISTIC E1 #######
+        def heuristic_e1(board, player):
+            # Define weights for different factors in the heuristic
+            weights = {
+                'Virus': 3,
+                'Tech': 3,
+                'Firewall': 3,
+                'Program': 3,
+                'AI': 9999
+            }
+        
+            player_units = get_player_units(board, player)
+            opponent_units = get_player_units(board, opponent(player))
+        
+            player_score = 0
+            opponent_score = 0
+        
+            # Calculate the player's score
+            for unit in player_units:
+                unit_type = get_unit_type(unit)
+                unit_health = get_unit_health(unit)
+                player_score += weights[unit_type] * unit_health
+        
+            # Calculate the opponent's score
+            for unit in opponent_units:
+                unit_type = get_unit_type(unit)
+                unit_health = get_unit_health(unit)
+                opponent_score += weights[unit_type] * unit_health
+        
+            return player_score - opponent_score
+            
+        #### HEURISTIC E2 #######
+
 
 @dataclass(slots=True)
 class Unit:
