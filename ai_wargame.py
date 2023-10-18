@@ -43,7 +43,117 @@ class GameType(Enum):
     CompVsComp = 3
 
 
-##############################################################################################################
+#### HEURISTIC E0 #######
+def heuristic_e0(game_state):
+    # Initialize scores for Player 1 and Player 2
+        score_p1 = 0
+        score_p2 = 0
+    
+        #  weights for different units
+        weight_vp = 3
+        weight_tp = 3
+        weight_fp = 3
+        weight_pp = 3
+        weight_aip = 9999
+    
+        # to calculate the scores
+        for player, units in game_state.items():
+            for unit_type, unit_count in units.items():
+                if player == 1:
+                    # Calculate the score for Player 1
+                    if unit_type == 'VP':
+                        score_p1 += weight_vp * unit_count
+                    elif unit_type == 'TP':
+                        score_p1 += weight_tp * unit_count
+                    elif unit_type == 'FP':
+                        score_p1 += weight_fp * unit_count
+                    elif unit_type == 'PP':
+                        score_p1 += weight_pp * unit_count
+                    elif unit_type == 'AIP':
+                        score_p1 += weight_aip * unit_count
+                else:
+                    # Calculate the score for Player 2
+                    if unit_type == 'VP':
+                        score_p2 += weight_vp * unit_count
+                    elif unit_type == 'TP':
+                        score_p2 += weight_tp * unit_count
+                    elif unit_type == 'FP':
+                        score_p2 += weight_fp * unit_count
+                    elif unit_type == 'PP':
+                        score_p2 += weight_pp * unit_count
+                    elif unit_type == 'AIP':
+                        score_p2 += weight_aip * unit_count
+
+    # e0 = the score difference
+        e0_value = score_p1 - score_p2
+    
+        return e0_value
+        
+def heuristic_e1(board, player):
+    weights = {
+        'Virus': 3,
+        'Tech': 3,
+        'Firewall': 3,
+        'Program': 3,
+        'AI': 9999
+    }
+
+    player_units = get_player_units(board, player)
+    opponent_units = get_player_units(board, opponent(player))
+    
+    player_score = 0
+    opponent_score = 0
+    
+    # Calculate the player's score
+    for unit in player_units:
+        unit_type = get_unit_type(unit)
+        unit_health_percentage = get_unit_health(unit) / 100.0
+        player_score += weights[unit_type] * unit_health_percentage
+    
+    # Calculate the opponent's score
+    for unit in opponent_units:
+        unit_type = get_unit_type(unit)
+        unit_health_percentage = get_unit_health(unit) / 100.0
+        opponent_score += weights[unit_type] * unit_health_percentage
+    
+    return player_score - opponent_score
+
+
+
+def heuristic_e2(board, player):
+    weights = {
+        'Virus': 3,
+        'Tech': 3,
+        'Firewall': 3,
+        'Program': 3,
+        'AI': 9999
+    }
+
+    def threat_level(unit):
+        
+        if is_under_threat(unit, board):
+            return 0.5
+        return 1
+
+    player_units = get_player_units(board, player)
+    opponent_units = get_player_units(board, opponent(player))
+    
+    player_score = 0
+    opponent_score = 0
+    
+    # Calculate the player's score
+    for unit in player_units:
+        unit_type = get_unit_type(unit)
+        player_score += weights[unit_type] * threat_level(unit)
+    
+    # Calculate the opponent's score
+    for unit in opponent_units:
+        unit_type = get_unit_type(unit)
+        opponent_score += weights[unit_type] * threat_level(unit)
+    
+    return player_score - opponent_score
+
+
 
 @dataclass(slots=True)
 class Unit:
@@ -723,19 +833,48 @@ def main():
             print(f"{winner.name} wins!")
             break
         if game.options.game_type == GameType.AttackerVsDefender:
-            game.human_turn()
-        elif game.options.game_type == GameType.AttackerVsComp and game.next_player == Player.Attacker:
-            game.human_turn()
-        elif game.options.game_type == GameType.CompVsDefender and game.next_player == Player.Defender:
-            game.human_turn()
-        else:
-            player = game.next_player
-            move = game.computer_turn()
-            if move is not None:
-                game.post_move_to_broker(move)
+            #Human vs AI
+            if game.next_player == Player.Attacker:
+                game.human_turn()
+        
             else:
-                print("Computer doesn't know what to do!!!")
-                exit(1)
+            #AI turn:
+                player = game.next_player
+                move = game.computer_turn()
+                if move is not None:
+                    game.post_move_to_broker(move)
+                else:
+                    print("Invalid!!!")
+                    exit(1)
+        
+        elif game.options.game_type == GameType.AttackerVsComp:
+            #Human vs AI 
+            if game.next_player == Player.Attacker:
+                game.human_turn()  # Human's turn
+            else:
+                # AI's turn
+                player = game.next_player
+                move = game.computer_turn()
+                if move is not None:
+                    game.post_move_to_broker(move)
+                else:
+                    print("Invalid!!!")
+                    exit(1)
+                    
+        elif game.options.game_type == GameType.CompVsDefender:
+            # AI vs Human
+            if game.next_player == Player.Defender:
+                game.human_turn()  # Human's turn
+            else:
+                # AI's turn
+                player = game.next_player
+                move = game.computer_turn()
+                if move is not None:
+                    game.post_move_to_broker(move)
+                else:
+                    print("Invalid!!!")
+                    exit(1)
+
 
     # Append the actions taken in this turn to the list
     game_actions.extend(game.actions)
