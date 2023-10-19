@@ -13,7 +13,38 @@ import requests
 MAX_HEURISTIC_SCORE = 2000000000
 MIN_HEURISTIC_SCORE = -2000000000
 
+#Heuristics
+def e0(game) -> int:
+    count_attacker=0
+    for (_,unit) in game.player_units(Player.Attacker):
+        if unit.type in {UnitType.Virus, UnitType.Tech,UnitType.Firewall,UnitType.Program}:
+            count_attacker+=3
+        elif unit.type == UnitType.AI:
+            count_attacker+=9999
+    count_defender=0
+    for (_,unit) in game.player_units(Player.Defender):
+        if unit.type in {UnitType.Virus, UnitType.Tech,UnitType.Firewall,UnitType.Program}:
+            count_defender+=3
+        elif unit.type == UnitType.AI:
+            count_defender+=9999
+    return count_attacker-count_defender
 
+
+def e1(game) -> int:
+    count_attacker=0
+    for (_,unit) in game.player_units(Player.Attacker):
+        if unit.type in {UnitType.Virus, UnitType.Tech,UnitType.Firewall,UnitType.Program}:
+            count_attacker+=3*unit.health
+        elif unit.type == UnitType.AI:
+            count_attacker+=99*unit.health
+    count_defender=0
+    for (_,unit) in game.player_units(Player.Defender):
+        if unit.type in {UnitType.Virus, UnitType.Tech,UnitType.Firewall,UnitType.Program}:
+            count_defender+=3*unit.health
+        elif unit.type == UnitType.AI:
+            count_defender+=99*unit.health
+    return count_attacker-count_defender
+        
 class UnitType(Enum):
     """Every unit type."""
     AI = 0
@@ -609,6 +640,11 @@ class Game:
         (score, move, avg_depth) = self.random_move()
         elapsed_seconds = (datetime.now() - start_time).total_seconds()
         self.stats.total_seconds += elapsed_seconds
+
+        game_state = self
+        print(f"Test of E0 {e0(game_state)}") 
+        print(f"Test of E1 {e1(game_state)}") 
+        
         print(f"Heuristic score: {score}")
         print(f"Average recursive depth: {avg_depth:0.1f}")
         print(f"Evals per depth: ", end='')
