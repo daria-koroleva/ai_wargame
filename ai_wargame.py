@@ -8,6 +8,7 @@ from time import sleep
 from typing import Tuple, TypeVar, Type, Iterable, ClassVar
 import random
 import requests
+from test import minimax
 
 # maximum and minimum values for our heuristic scores (usually represents an end of game condition)
 MAX_HEURISTIC_SCORE = 2000000000
@@ -634,10 +635,43 @@ class Game:
         else:
             return (0, None, 0)
 
+    def minimax(game, depth, maximizing_player):
+        if depth == 0 or game.is_finished():
+            return e0(game)
+
+        if maximizing_player:
+            max_eval = MIN_HEURISTIC_SCORE
+            for move in game.move_candidates():
+                game_clone = game.clone()
+                game_clone.perform_move(move)
+                eval = minimax(game_clone, depth - 1, False)
+                max_eval = max(max_eval, eval)
+            return max_eval
+        else:
+            min_eval = MAX_HEURISTIC_SCORE
+            for move in game.move_candidates():
+                game_clone = game.clone()
+                game_clone.perform_move(move)
+                eval = minimax(game_clone, depth - 1, True)
+                min_eval = min(min_eval, eval)
+            return min_eval
+
     def suggest_move(self) -> CoordPair | None:
-        """Suggest the next move using minimax alpha beta. TODO: REPLACE RANDOM_MOVE WITH PROPER GAME LOGIC!!!"""
+        """Suggest the next move using minimax or alpha beta. TODO: REPLACE RANDOM_MOVE WITH PROPER GAME LOGIC!!!"""
         start_time = datetime.now()
-        (score, move, avg_depth) = self.random_move()
+
+        best_move = None
+        best_score = MIN_HEURISTIC_SCORE
+
+        for move in self.move_candidates():
+            game_clone = self.clone()
+            game_clone.perform_move(move)
+            score = minimax(game_clone, self.options.max_depth, False)
+            if score > best_score:
+                best_score = score
+                best_move = move
+
+        #(score, move, avg_depth) = self.random_move()
         elapsed_seconds = (datetime.now() - start_time).total_seconds()
         self.stats.total_seconds += elapsed_seconds
 
@@ -646,16 +680,22 @@ class Game:
         print(f"Test of E1 {e1(game_state)}") 
         
         print(f"Heuristic score: {score}")
-        print(f"Average recursive depth: {avg_depth:0.1f}")
-        print(f"Evals per depth: ", end='')
-        for k in sorted(self.stats.evaluations_per_depth.keys()):
-            print(f"{k}:{self.stats.evaluations_per_depth[k]} ", end='')
-        print()
-        total_evals = sum(self.stats.evaluations_per_depth.values())
-        if self.stats.total_seconds > 0:
-            print(f"Eval perf.: {total_evals / self.stats.total_seconds / 1000:0.1f}k/s")
+        # print(f"Average recursive depth: {avg_depth:0.1f}")
+        # print(f"Evals per depth: ", end='')
+        #
+        # for k in sorted(self.stats.evaluations_per_depth.keys()):
+        #     print(f"{k}:{self.stats.evaluations_per_depth[k]} ", end='')
+        # print()
+        #
+        # total_evals = sum(self.stats.evaluations_per_depth.values())
+        # if self.stats.total_seconds > 0:
+        #     print(f"Eval perf.: {total_evals / self.stats.total_seconds / 1000:0.1f}k/s")
         print(f"Elapsed time: {elapsed_seconds:0.1f}s")
-        return move
+
+
+        #return move
+        return best_move
+
 
     def post_move_to_broker(self, move: CoordPair):
         """Send a move to the game broker."""
@@ -721,6 +761,10 @@ def main():
     args = parser.parse_args()
 
     # parse the game type
+    # to select which player plays AI and which is Human
+    #Attacker vs. Comp (Attacker is Human, Defender is AI): python3 ai_wargame.py --game_type attacker
+    #Comp vs. Defender (Defender is Human, Attacker is AI): python3 ai_wargame.py --game_type defender
+    #Comp vs. Comp (Both AI): python3 ai_wargame.py --game_type comp
     if args.game_type == "attacker":
         game_type = GameType.AttackerVsComp
     elif args.game_type == "defender":
