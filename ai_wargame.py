@@ -14,6 +14,19 @@ MAX_HEURISTIC_SCORE = 2000000000
 MIN_HEURISTIC_SCORE = -2000000000
 
 #Heuristics
+def e(game:Game)->int:
+    '''choose and call heuristic based on game options'''
+    if game.options.heuristic == 0:        
+        return e0(game)
+    elif game.options.heuristic == 1:        
+        return e1(game)
+    elif game.options.heuristic == 2:
+        #TODO add and update new heuristics
+        return e1(game)
+    else:
+        return e0(game)
+
+
 def e0(game) -> int:
     count_attacker=0
     for (_,unit) in game.player_units(Player.Attacker):
@@ -36,15 +49,15 @@ def e1(game) -> int:
         if unit.type in {UnitType.Virus, UnitType.Tech,UnitType.Firewall,UnitType.Program}:
             count_attacker+=3*unit.health
         elif unit.type == UnitType.AI:
-            count_attacker+=99*unit.health
+            count_attacker+=999*unit.health
     count_defender=0
     for (_,unit) in game.player_units(Player.Defender):
         if unit.type in {UnitType.Virus, UnitType.Tech,UnitType.Firewall,UnitType.Program}:
-            count_defender+=3*unit.health
-        elif unit.type == UnitType.AI:
-            count_defender+=99*unit.health
+            count_defender+=3*unit.health     
+        elif unit.type == UnitType.AI:            
+            count_defender+=999*unit.health
     return count_attacker-count_defender
-        
+
 class UnitType(Enum):
     """Every unit type."""
     AI = 0
@@ -264,6 +277,7 @@ class Options:
     max_turns: int | None = 100
     randomize_moves: bool = True
     broker: str | None = None
+    heuristic: int = 0
 
 ##############################################################################################################
 
@@ -625,28 +639,108 @@ class Game:
             move.dst = src
             yield move.clone()
 
-    def random_move(self) -> Tuple[int, CoordPair | None, float]:
+    def get_children(self) -> Iterable[Tuple[Game,CoordPair]]:
+        """Generate valid move candidates for the next player."""
+        move = CoordPair()        
+        for (src, _) in self.player_units(self.next_player):
+            move.src = src
+            for dst in src.iter_adjacent():
+                move.dst = dst
+                nodeClone = self.clone()
+                (success,_) = nodeClone.perform_move(move.clone())
+                if success:
+                    nodeClone.next_turn()
+                    yield (nodeClone.clone(),move.clone())
+
+            #selfmove
+            move.dst = src
+            nodeClone = self.clone()
+            (success,_) = nodeClone.perform_move(move)
+            if success:
+                nodeClone.next_turn()
+                yield (nodeClone.clone(),move)
+
+
+    def random_move(self) -> Tuple[int, CoordPair | None]:
         """Returns a random move."""
         move_candidates = list(self.move_candidates())
         random.shuffle(move_candidates)
         if len(move_candidates) > 0:
-            return (0, move_candidates[0], 1)
+            return (0, move_candidates[0])
         else:
-            return (0, None, 0)
+            return (0, None)
+    
+  
+    def alpha_beta_move(self) -> Tuple[int, CoordPair | None]:
+        """Alpha beta move"""
+        origin = self        
+        depth = self.options.max_depth        
+        alpha = MIN_HEURISTIC_SCORE
+        beta = MAX_HEURISTIC_SCORE
+        maximizingPlayer = origin.next_player==Player.Attacker
+        
+        (score, move) = self.alpha_beta(origin, depth, alpha, beta , maximizingPlayer)
+
+        return (score, move)
+        
+        
+    def alpha_beta(self, node:Game ,depth:int, alpha:int, beta:int, maximizingPlayer:bool) -> Tuple[int,CoordPair]:
+
+        #If node has_winner it's an end node
+        if depth==0 or node.is_finished():
+            return (e(node),None)
+              
+        if maximizingPlayer:
+
+            value_bestmove = (MIN_HEURISTIC_SCORE,None)
+            
+            for (child,move) in node.get_children():                
+                #store the alpha_beta evaluation value
+                (alpha_beta_result,_) = self.alpha_beta(child, depth-1,alpha, beta, False)
+
+                #update value with max(alpha_beta_result,value_bestmove[0]) and best move
+                if(alpha_beta_result > value_bestmove[0]):
+                    value_bestmove = (alpha_beta_result,move)                    
+                #update alpha with max(value_bestmove[0],alpha)    
+                if(value_bestmove[0] > alpha):
+                    alpha = value_bestmove[0]
+                if beta <= alpha: #TODO we might can break if there is timeout
+                    break                
+            return value_bestmove
+        else:
+            value_bestmove = (MAX_HEURISTIC_SCORE,None)
+
+            for (child,move) in node.get_children():
+                
+                #store the alpha_beta evaluation value
+                (alpha_beta_result,_) = self.alpha_beta(child, depth-1,alpha, beta, True)
+                #update value with min(alpha_beta_result,value_bestmove[0]) and the best move
+                if(alpha_beta_result < value_bestmove[0]):
+                    value_bestmove = (alpha_beta_result, move)                    
+                #update beta with min(value_bestmove[0],beta)
+                if(value_bestmove[0] < beta):
+                    beta = value_bestmove[0]
+                if beta <= alpha:                    
+                    break
+            return value_bestmove
+    
 
     def suggest_move(self) -> CoordPair | None:
-        """Suggest the next move using minimax alpha beta. TODO: REPLACE RANDOM_MOVE WITH PROPER GAME LOGIC!!!"""
+        """Suggest the next move using minimax alpha beta."""
         start_time = datetime.now()
-        (score, move, avg_depth) = self.random_move()
+
+        if self.options.alpha_beta:            
+            (score, move) = self.alpha_beta_move()
+        #minimax
+        else:            
+            (score, move) = self.random_move()
+
+        #print(move)
         elapsed_seconds = (datetime.now() - start_time).total_seconds()
         self.stats.total_seconds += elapsed_seconds
 
-        game_state = self
-        print(f"Test of E0 {e0(game_state)}") 
-        print(f"Test of E1 {e1(game_state)}") 
         
         print(f"Heuristic score: {score}")
-        print(f"Average recursive depth: {avg_depth:0.1f}")
         print(f"Evals per depth: ", end='')
         for k in sorted(self.stats.evaluations_per_depth.keys()):
             print(f"{k}:{self.stats.evaluations_per_depth[k]} ", end='')
@@ -716,8 +810,11 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--max_depth', type=int, help='maximum search depth')
     parser.add_argument('--max_time', type=float, help='maximum search time')
-    parser.add_argument('--game_type', type=str, default="manual", help='game type: auto|attacker|defender|manual')
+    parser.add_argument('--game_type', type=str, default='manual', help='game type: auto|attacker|defender|manual')
     parser.add_argument('--broker', type=str, help='play via a game broker')
+    parser.add_argument('--alpha_beta', type=str, default='true', help='true for alphabeta, false for minmax')
+    parser.add_argument('--heuristic', type=int, default=0,help='Heuristic: 0|1|2')
+
     args = parser.parse_args()
 
     # parse the game type
@@ -739,8 +836,18 @@ def main():
     if args.max_time is not None:
         options.max_time = args.max_time
     if args.broker is not None:
-        options.broker = args.broker
+        options.broker = args.broker    
+    if args.heuristic is not None:
+        options.heuristic = args.heuristic
 
+
+    if args.alpha_beta is not None:
+        alpha_beta_str = args.alpha_beta
+        if alpha_beta_str.lower() in ('true', 't'):
+            options.alpha_beta = True
+        elif alpha_beta_str.lower() in ('false', 'f'):
+            options.alpha_beta = False
+    
     # Create an empty list to store game actions
     game_actions = []
 
@@ -800,8 +907,6 @@ def main():
 
         # Close the output file
     output_file.close()
-
-
 
 
 ##############################################################################################################
