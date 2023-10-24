@@ -671,6 +671,10 @@ class Game:
                 best_score = score
                 best_move = move
 
+        if best_move is not None:
+            self.perform_move(best_move)
+            self.post_move_to_broker(best_move)
+
         #(score, move, avg_depth) = self.random_move()
         elapsed_seconds = (datetime.now() - start_time).total_seconds()
         self.stats.total_seconds += elapsed_seconds
@@ -691,7 +695,6 @@ class Game:
         # if self.stats.total_seconds > 0:
         #     print(f"Eval perf.: {total_evals / self.stats.total_seconds / 1000:0.1f}k/s")
         print(f"Elapsed time: {elapsed_seconds:0.1f}s")
-
 
         #return move
         return best_move
