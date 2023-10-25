@@ -9,7 +9,9 @@ Human VS Human
 
 ## D2
 Human-attacker  VS Computer(AI-defender)
+
 Computer(AI-attacker) VS Human-defender
+
 Computer(AI-attacker) VS Computer(AI-defender)
 
 ## Team Name
