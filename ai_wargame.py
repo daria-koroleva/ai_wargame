@@ -286,6 +286,8 @@ class Stats:
     """Representation of the global game statistics."""
     evaluations_per_depth: dict[int, int] = field(default_factory=dict)
     total_seconds: float = 0.0
+    average_branching_factor: float = 0.0
+    average_branching_size: int = 0
 
 
 ##############################################################################################################
@@ -713,7 +715,9 @@ class Game:
 
             value_bestmove = (MIN_HEURISTIC_SCORE,None)
             
-            for (child,move) in node.get_children():                
+            branch_factor=0
+            for (child,move) in node.get_children():
+                branch_factor+=1
                 #store the alpha_beta evaluation value
                 (alpha_beta_result,_) = self.alpha_beta(child, depth-1,alpha, beta, False)
                 #Evaluate time_out
@@ -727,12 +731,13 @@ class Game:
                     alpha = value_bestmove[0]
                 if beta <= alpha:
                     break                
+            self.update_average_branching(branch_factor)
             return value_bestmove
         else:
             value_bestmove = (MAX_HEURISTIC_SCORE,None)
 
             for (child,move) in node.get_children():
-                
+                branch_factor=0
                 #store the alpha_beta evaluation value
                 (alpha_beta_result,_) = self.alpha_beta(child, depth-1,alpha, beta, True)
                 #Evaluate time_out
@@ -746,6 +751,7 @@ class Game:
                     beta = value_bestmove[0]
                 if beta <= alpha:                    
                     break
+            self.update_average_branching(branch_factor)    
             return value_bestmove
     
     def minimax(self,game:Game, depth:int, maximizing_player:bool)->Tuple[int,CoordPair]:
@@ -789,6 +795,10 @@ class Game:
         
         return (score,best_move)
 
+    def update_average_branching(self, branch_factor):
+        self.stats.average_branching_factor = (self.stats.average_branching_factor*self.stats.average_branching_size + branch_factor) / (self.stats.average_branching_size+1)
+        self.stats.average_branching_size +=1
+    
     def suggest_move(self) -> CoordPair | None:
         """Suggest the next move using minimax alpha beta."""
         start_time = datetime.now()
@@ -829,6 +839,9 @@ class Game:
         print(f"Elapsed time: {elapsed_seconds:0.1f}s")
         print(f"Elapsed time ms: {(elapsed_seconds-self.options.max_time)*1000:0.1f}ms")
         self.actions.append(f"Time for this action : {elapsed_seconds:0.1f}s")
+        average_branching_factor_output = f"Average branching factor: {round(self.stats.average_branching_factor,2)}"
+        print(average_branching_factor_output)
+        self.actions.append(average_branching_factor_output)
         return move
 
     def post_move_to_broker(self, move: CoordPair):
