@@ -272,6 +272,7 @@ class Options:
     max_depth: int | None = 4
     min_depth: int | None = 2
     max_time: float | None = 5.0
+    max_time_adjusted: float | None = 5.0
     game_type: GameType = GameType.AttackerVsDefender
     alpha_beta: bool = True
     max_turns: int | None = 100
@@ -286,6 +287,8 @@ class Stats:
     """Representation of the global game statistics."""
     evaluations_per_depth: dict[int, int] = field(default_factory=dict)
     total_seconds: float = 0.0
+    average_branching_factor: float = 0.0
+    average_branching_size: int = 0
 
 
 ##############################################################################################################
@@ -302,6 +305,10 @@ class Game:
     _defender_has_ai: bool = True
 
     actions: list[str] = field(default_factory=list)  # Store game actions
+
+    is_time_out: bool = False
+    current_start_time: datetime = field(init=False)
+    current_depth : int = 0
 
     def __post_init__(self):
         """Automatically called after class init to set up the default board state."""
@@ -459,8 +466,7 @@ class Game:
             self.set(coords.dst, self.get(coords.src))
             self.set(coords.src, None)
             action_taken_str = f"{self.next_player.name} - turn #{self.turns_played+1}: move {coords.src} -> {coords.dst}"            
-            self.actions.append(action_taken_str)
-            return (True, "")
+            return (True, action_taken_str)
 
         elif self.is_valid_attack(coords):
             unit_s = self.get(coords.src)
@@ -470,8 +476,7 @@ class Game:
             self.mod_health(coords.src, -damage_on_s)
             self.mod_health(coords.dst, -damage_on_t)
             action_taken_str = f"{self.next_player.name} - turn #{self.turns_played+1}: attack {coords.src} -> {coords.dst}"
-            self.actions.append(action_taken_str)
-            return (True, "")
+            return (True, action_taken_str)
 
         elif self.is_valid_repair(coords):
             unit_s = self.get(coords.src)
@@ -479,16 +484,16 @@ class Game:
             repair_on_t = unit_s.repair_amount(unit_t)
             self.mod_health(coords.dst, repair_on_t)
             action_taken_str = f"{self.next_player.name} - turn #{self.turns_played+1}: repair {coords.src} -> {coords.dst}"
-            self.actions.append(action_taken_str)
-            return (True, "")
+            return (True, action_taken_str)
         elif self.can_self_destruct(coords):
             self.mod_health(coords.src, -9)
             for surrounding_coord in coords.src.iter_range(1):
                 self.mod_health(surrounding_coord, -2)
-            action_taken_str = f"{self.next_player.name} - turn #{self.turns_played+1}: self-destruct {coords.src} -> {coords.dst}"
-            self.actions.append(action_taken_str)
-            return (True, "")
-        return (False, "invalid move")
+            action_taken_str = f"{self.next_player.name} - turn #{self.turns_played+1}: self-destruct {coords.src} -> {coords.dst}"            
+            return (True, action_taken_str)
+        
+        action_taken_str = f"{self.next_player.name} performed an invalid move {coords.src} -> {coords.dst}"
+        return (False, action_taken_str)
 
     def next_turn(self):
         """Transitions game to the next turn."""
@@ -576,6 +581,7 @@ class Game:
                 mv = self.get_move_from_broker()
                 if mv is not None:
                     (success, result) = self.perform_move(mv)
+                    self.actions.append(result)
                     print(f"Broker {self.next_player.name}: ", end='')                    
                     print(result)                    
                     if success:
@@ -586,6 +592,7 @@ class Game:
             while True:
                 mv = self.read_move()
                 (success, result) = self.perform_move(mv)
+                self.actions.append(result)
                 if success:
                     print(f"Player {self.next_player.name}: ", end='')
                     print(result)
@@ -599,6 +606,7 @@ class Game:
         mv = self.suggest_move()
         if mv is not None:
             (success, result) = self.perform_move(mv)
+            self.actions.append(result)
             if success:
                 print(f"Computer {self.next_player.name}: ", end='')
                 print(result)
@@ -673,47 +681,68 @@ class Game:
   
     def alpha_beta_move(self) -> Tuple[int, CoordPair | None]:
         """Alpha beta move"""
-        origin = self        
-        depth = self.options.max_depth        
+        origin = self
+        max_depth = self.options.max_depth
         alpha = MIN_HEURISTIC_SCORE
         beta = MAX_HEURISTIC_SCORE
         maximizingPlayer = origin.next_player==Player.Attacker
         
-        (score, move) = self.alpha_beta(origin, depth, alpha, beta , maximizingPlayer)
-
-        return (score, move)
-        
-        
+        for depth in range(1,max_depth+1):
+            self.current_depth = depth
+            (score, move) = self.alpha_beta(origin, depth, alpha, beta , maximizingPlayer)
+            if self.is_time_out:
+                self.is_time_out = False                
+                return (best_score, best_move)
+            else:            
+                (best_score, best_move) = (score,move)
+                
+        return (best_score, best_move)
+    
     def alpha_beta(self, node:Game ,depth:int, alpha:int, beta:int, maximizingPlayer:bool) -> Tuple[int,CoordPair]:
+        
+        #Validate if time is up
+        elapsed_seconds = (datetime.now() - self.current_start_time).total_seconds()
+        if(elapsed_seconds >= self.options.max_time_adjusted):
+            self.is_time_out = True
+            return (0,None)
 
         #If node has_winner it's an end node
         if depth==0 or node.is_finished():
+            self.update_evaluations_per_depth()         
             return (e(node),None)
               
         if maximizingPlayer:
 
             value_bestmove = (MIN_HEURISTIC_SCORE,None)
             
-            for (child,move) in node.get_children():                
+            branch_factor=0
+            for (child,move) in node.get_children():
+                branch_factor+=1
                 #store the alpha_beta evaluation value
                 (alpha_beta_result,_) = self.alpha_beta(child, depth-1,alpha, beta, False)
-
+                #check time_out
+                if(self.is_time_out):
+                    return (alpha_beta_result,_)
                 #update value with max(alpha_beta_result,value_bestmove[0]) and best move
                 if(alpha_beta_result > value_bestmove[0]):
-                    value_bestmove = (alpha_beta_result,move)                    
+                    value_bestmove = (alpha_beta_result,move)
                 #update alpha with max(value_bestmove[0],alpha)    
                 if(value_bestmove[0] > alpha):
                     alpha = value_bestmove[0]
-                if beta <= alpha: #TODO we might can break if there is timeout
-                    break                
+                if beta <= alpha:
+                    break
+            self.update_average_branching(branch_factor)
             return value_bestmove
         else:
             value_bestmove = (MAX_HEURISTIC_SCORE,None)
 
             for (child,move) in node.get_children():
-                
+                branch_factor=0
                 #store the alpha_beta evaluation value
                 (alpha_beta_result,_) = self.alpha_beta(child, depth-1,alpha, beta, True)
+                #check time_out
+                if(self.is_time_out):
+                    return (alpha_beta_result,_)
                 #update value with min(alpha_beta_result,value_bestmove[0]) and the best move
                 if(alpha_beta_result < value_bestmove[0]):
                     value_bestmove = (alpha_beta_result, move)                    
@@ -722,36 +751,57 @@ class Game:
                     beta = value_bestmove[0]
                 if beta <= alpha:                    
                     break
+            self.update_average_branching(branch_factor)    
             return value_bestmove
     
     def minimax(self,game:Game, depth:int, maximizing_player:bool)->Tuple[int,CoordPair]:
         '''minmax algorithm'''                
+        #Validate if time is up
+        elapsed_seconds = (datetime.now() - self.current_start_time).total_seconds()
+        if(elapsed_seconds >= self.options.max_time_adjusted):
+            self.is_time_out = True
+            return (0,None)
+        
         if depth == 0 or game.is_finished():
+            self.update_evaluations_per_depth()
             return (e(game),None)
 
         if maximizing_player:
             max_eval = MIN_HEURISTIC_SCORE
             best_move = None
 
+            branch_factor=0
             for(child, move) in game.get_children():
+                branch_factor+=1
 
                 (eval,_) = self.minimax(child, depth - 1, False)
+                #check time_out
+                if(self.is_time_out):
+                    return (eval,_)
                 #update max eval and best move   
                 if(eval > max_eval):
                     max_eval = eval
                     best_move = move
+
+            self.update_average_branching(branch_factor)
             return (max_eval, best_move)
         else:            
             min_eval = MAX_HEURISTIC_SCORE
             best_move = None
 
+            branch_factor=0
             for(child, move) in game.get_children():
+                branch_factor+=1
                 (eval,_) = self.minimax(child, depth - 1, True)
 
+                #check time_out
+                if(self.is_time_out):
+                    return (eval,_)
                 #update min eval and best move
                 if( eval < min_eval):
                     min_eval = eval
                     best_move = move
+            self.update_average_branching(branch_factor)
             return ( min_eval, best_move)
 
 
@@ -759,35 +809,70 @@ class Game:
         '''Minimax move'''        
         #Attacker is max player and defender is min
         maximizing_player = self.next_player==Player.Attacker
-        depth = self.options.max_depth
+        max_depth = self.options.max_depth
         
-        (score,best_move) = self.minimax(self, depth ,maximizing_player)
+        for depth in range(1,max_depth+1):
+            self.current_depth = depth
+            (score, move) = self.minimax(self, depth,maximizing_player)
+            if self.is_time_out:
+                self.is_time_out = False                
+                return (best_score, best_move)
+            else:            
+                (best_score, best_move) = (score,move)
         
-        return (score,best_move)
+        return (best_score, best_move)
 
+    def update_average_branching(self, branch_factor):
+        self.stats.average_branching_factor = (self.stats.average_branching_factor*self.stats.average_branching_size + branch_factor) / (self.stats.average_branching_size+1)
+        self.stats.average_branching_size +=1
+    
+    def update_evaluations_per_depth(self):
+        if self.stats.evaluations_per_depth.get(self.current_depth) is None:
+                self.stats.evaluations_per_depth[self.current_depth] = 0
+        self.stats.evaluations_per_depth[self.current_depth] += 1
+    
     def suggest_move(self) -> CoordPair | None:
         """Suggest the next move using minimax alpha beta."""
         start_time = datetime.now()
 
+        self.current_start_time = start_time
+        
         if self.options.alpha_beta:            
             (score, move) = self.alpha_beta_move()
         #minimax
         else:
             (score, move) = self.minimax_move()
-        #print(move)
         elapsed_seconds = (datetime.now() - start_time).total_seconds()
         self.stats.total_seconds += elapsed_seconds
 
         
         print(f"Heuristic score: {score}")
+        self.actions.append(f"Heuristic score: {score}")
+        
+        total_evals = sum(self.stats.evaluations_per_depth.values())
+        print(f"Cumulative evals: {total_evals}")
+        self.actions.append(f"Cumulative evals: {total_evals}")
+
         print(f"Evals per depth: ", end='')
+        evals_per_depth_output = "Cumulative evals by depth: "
+        evals_per_depth_percentage_output = "Cumulative % evals by depth: "
         for k in sorted(self.stats.evaluations_per_depth.keys()):
             print(f"{k}:{self.stats.evaluations_per_depth[k]} ", end='')
+            evals_per_depth_output += f"{k}:{self.stats.evaluations_per_depth[k]} "
+            evals_per_depth_percentage_output += f"{k}:{round((self.stats.evaluations_per_depth[k]/total_evals)*100,2)} % "            
         print()
-        total_evals = sum(self.stats.evaluations_per_depth.values())
+
+        self.actions.append(evals_per_depth_output)
+        self.actions.append(evals_per_depth_percentage_output)
+        print(evals_per_depth_percentage_output)
+        
         if self.stats.total_seconds > 0:
             print(f"Eval perf.: {total_evals / self.stats.total_seconds / 1000:0.1f}k/s")
         print(f"Elapsed time: {elapsed_seconds:0.1f}s")
+        self.actions.append(f"Time for this action : {elapsed_seconds:0.1f}s")
+        average_branching_factor_output = f"Average branching factor: {round(self.stats.average_branching_factor,2)}"
+        print(average_branching_factor_output)
+        self.actions.append(average_branching_factor_output)
         return move
 
     def post_move_to_broker(self, move: CoordPair):
@@ -886,6 +971,12 @@ def main():
             options.alpha_beta = True
         elif alpha_beta_str.lower() in ('false', 'f'):
             options.alpha_beta = False
+
+    #adjust time -- provide room to return values in case of running out of time
+    max_time_adjustment_ms = 49
+    #Adjust time with room
+    options.max_time_adjusted = options.max_time - max_time_adjustment_ms/1000
+
     
     # Create an empty list to store game actions
     game_actions = []
@@ -926,23 +1017,47 @@ def main():
     game_type_str = str(options.game_type)
     max_turns_str = str(options.max_turns)
 
+    
     P1 = "max_time: " + max_time_str + "\n"
-    P2 = "game_type: " + game_type_str + "\n" + "Player1 = H, Player2 = H" + "\n"
-    P3 = "max_turns: " + max_turns_str + "\n"
-    P4 = "the winner is: " + winner.name + "\n in " + str(game.turns_played) + " turns"
+    P2 = "max_turns: " + max_turns_str + "\n"
+
+    if(game.options.alpha_beta):
+        alpha_beta_output = "\nalpha-beta is on"
+    else:
+        alpha_beta_output = "\nalpha-beta is off"
+
+    if game_type == GameType.AttackerVsComp:
+        P3 = alpha_beta_output
+        P4 = "\ngame_type: Player1 = H, Player2 = AI" + "\n"
+        P5 = f"\nHeuristic e{options.heuristic}"
+    elif game_type == GameType.CompVsDefender:
+        P3 = alpha_beta_output
+        P4 = "\ngame_type: Player1 = AI, Player2 = H" + "\n"
+        P5 = f"\nHeuristic e{options.heuristic}"
+    elif game_type == GameType.AttackerVsDefender:
+        P3 = ""
+        P4 = "\ngame_type: Player1 = H, Player2 = H" + "\n"
+        P5 = ""
+    elif game_type == GameType.CompVsComp:
+        P3 = alpha_beta_output
+        P4= "\ngame_type: Player1 = AI, Player2 = AI" + "\n"
+        P5 = f"\nHeuristic e{options.heuristic}"
+
+    
+    P6 =  winner.name + " wins in " + str(game.turns_played) + " turns"
 
 
-    output_file_name = f"gameTrace-false-{game.options.max_time}-{game.options.max_turns}.txt"
+    output_file_name = f"gameTrace-{str(game.options.alpha_beta).lower()}-{game.options.max_time}-{game.options.max_turns}.txt"
     with open(output_file_name, 'w') as output_file:
         output_file.write("The game parameters" + "\n" + "\n")
-        output_file.write(P1 + P2 + P3 + "\n" + "\n")
+        output_file.write(P1 + P2 + P3 + P4 + P5 + "\n" + "\n")
 
         output_file.write("Initial Board Configuration" + "\n" + "\n")
         for action in game_actions:
             output_file.write(action + "\n")
 
         output_file.write("\n" + "\n")
-        output_file.write(P4)
+        output_file.write(P6)
 
         # Close the output file
     output_file.close()
