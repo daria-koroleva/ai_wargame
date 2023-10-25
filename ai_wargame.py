@@ -272,6 +272,7 @@ class Options:
     max_depth: int | None = 4
     min_depth: int | None = 2
     max_time: float | None = 5.0
+    max_time_adjusted: float | None = 5.0
     game_type: GameType = GameType.AttackerVsDefender
     alpha_beta: bool = True
     max_turns: int | None = 100
@@ -701,7 +702,7 @@ class Game:
         
         #Validate if time is up
         elapsed_seconds = (datetime.now() - self.current_start_time).total_seconds()
-        if(elapsed_seconds >= self.options.max_time):
+        if(elapsed_seconds >= self.options.max_time_adjusted):
             self.is_time_out = True
             return (0,None)
 
@@ -757,7 +758,7 @@ class Game:
         '''minmax algorithm'''                
         #Validate if time is up
         elapsed_seconds = (datetime.now() - self.current_start_time).total_seconds()
-        if(elapsed_seconds >= self.options.max_time):
+        if(elapsed_seconds >= self.options.max_time_adjusted):
             self.is_time_out = True
             return (0,None)
         
@@ -868,7 +869,6 @@ class Game:
         if self.stats.total_seconds > 0:
             print(f"Eval perf.: {total_evals / self.stats.total_seconds / 1000:0.1f}k/s")
         print(f"Elapsed time: {elapsed_seconds:0.1f}s")
-        print(f"Elapsed time ms: {(elapsed_seconds-self.options.max_time)*1000:0.1f}ms")
         self.actions.append(f"Time for this action : {elapsed_seconds:0.1f}s")
         average_branching_factor_output = f"Average branching factor: {round(self.stats.average_branching_factor,2)}"
         print(average_branching_factor_output)
@@ -971,6 +971,12 @@ def main():
             options.alpha_beta = True
         elif alpha_beta_str.lower() in ('false', 'f'):
             options.alpha_beta = False
+
+    #adjust time -- provide room to return values in case of running out of time
+    max_time_adjustment_ms = 49
+    #Adjust time with room
+    options.max_time_adjusted = options.max_time - max_time_adjustment_ms/1000
+
     
     # Create an empty list to store game actions
     game_actions = []
