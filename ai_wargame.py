@@ -781,6 +781,8 @@ class Game:
 
         
         print(f"Heuristic score: {score}")
+        self.actions.append(f"Heuristic score: {score}")
+
         print(f"Evals per depth: ", end='')
         for k in sorted(self.stats.evaluations_per_depth.keys()):
             print(f"{k}:{self.stats.evaluations_per_depth[k]} ", end='')
@@ -789,6 +791,7 @@ class Game:
         if self.stats.total_seconds > 0:
             print(f"Eval perf.: {total_evals / self.stats.total_seconds / 1000:0.1f}k/s")
         print(f"Elapsed time: {elapsed_seconds:0.1f}s")
+        self.actions.append(f"Time for this action : {elapsed_seconds:0.1f}s")
         return move
 
     def post_move_to_broker(self, move: CoordPair):
