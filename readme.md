@@ -15,9 +15,13 @@ Computer(AI-attacker) VS Human-defender
 Computer(AI-attacker) VS Computer(AI-defender)
 
 ## How to run the program
-Run the python script indicating the game type 
-if computer/AI will play then you need to indicate the game type, heuristic, max_depth, and whether you need to use minimax or alpha_beta pruning.
+
+Run the python script from terminal indicating the game type 
+
+If computer/AI will play then you need to indicate the game type, heuristic, max_depth, and whether you need to use minimax or alpha_beta pruning.
+
 if alpha_beta=false then minimax is in use 
+
 if alpha_beta=true then alpha_beta is in use.
 
 for example:
