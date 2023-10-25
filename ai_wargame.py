@@ -699,6 +699,7 @@ class Game:
     
     def alpha_beta(self, node:Game ,depth:int, alpha:int, beta:int, maximizingPlayer:bool) -> Tuple[int,CoordPair]:
         
+        #Validate if time is up
         elapsed_seconds = (datetime.now() - self.current_start_time).total_seconds()
         if(elapsed_seconds >= self.options.max_time):
             self.is_time_out = True
@@ -706,9 +707,7 @@ class Game:
 
         #If node has_winner it's an end node
         if depth==0 or node.is_finished():
-            if self.stats.evaluations_per_depth.get(self.current_depth) is None:
-                self.stats.evaluations_per_depth[self.current_depth] = 0
-            self.stats.evaluations_per_depth[self.current_depth] += 1            
+            self.update_evaluations_per_depth()         
             return (e(node),None)
               
         if maximizingPlayer:
@@ -720,7 +719,7 @@ class Game:
                 branch_factor+=1
                 #store the alpha_beta evaluation value
                 (alpha_beta_result,_) = self.alpha_beta(child, depth-1,alpha, beta, False)
-                #Evaluate time_out
+                #check time_out
                 if(self.is_time_out):
                     return (alpha_beta_result,_)
                 #update value with max(alpha_beta_result,value_bestmove[0]) and best move
@@ -730,7 +729,7 @@ class Game:
                 if(value_bestmove[0] > alpha):
                     alpha = value_bestmove[0]
                 if beta <= alpha:
-                    break                
+                    break
             self.update_average_branching(branch_factor)
             return value_bestmove
         else:
@@ -740,7 +739,7 @@ class Game:
                 branch_factor=0
                 #store the alpha_beta evaluation value
                 (alpha_beta_result,_) = self.alpha_beta(child, depth-1,alpha, beta, True)
-                #Evaluate time_out
+                #check time_out
                 if(self.is_time_out):
                     return (alpha_beta_result,_)
                 #update value with min(alpha_beta_result,value_bestmove[0]) and the best move
@@ -756,32 +755,52 @@ class Game:
     
     def minimax(self,game:Game, depth:int, maximizing_player:bool)->Tuple[int,CoordPair]:
         '''minmax algorithm'''                
+        #Validate if time is up
+        elapsed_seconds = (datetime.now() - self.current_start_time).total_seconds()
+        if(elapsed_seconds >= self.options.max_time):
+            self.is_time_out = True
+            return (0,None)
+        
         if depth == 0 or game.is_finished():
+            self.update_evaluations_per_depth()
             return (e(game),None)
 
         if maximizing_player:
             max_eval = MIN_HEURISTIC_SCORE
             best_move = None
 
+            branch_factor=0
             for(child, move) in game.get_children():
+                branch_factor+=1
 
                 (eval,_) = self.minimax(child, depth - 1, False)
+                #check time_out
+                if(self.is_time_out):
+                    return (eval,_)
                 #update max eval and best move   
                 if(eval > max_eval):
                     max_eval = eval
                     best_move = move
+
+            self.update_average_branching(branch_factor)
             return (max_eval, best_move)
         else:            
             min_eval = MAX_HEURISTIC_SCORE
             best_move = None
 
+            branch_factor=0
             for(child, move) in game.get_children():
+                branch_factor+=1
                 (eval,_) = self.minimax(child, depth - 1, True)
 
+                #check time_out
+                if(self.is_time_out):
+                    return (eval,_)
                 #update min eval and best move
                 if( eval < min_eval):
                     min_eval = eval
                     best_move = move
+            self.update_average_branching(branch_factor)
             return ( min_eval, best_move)
 
 
@@ -789,15 +808,27 @@ class Game:
         '''Minimax move'''        
         #Attacker is max player and defender is min
         maximizing_player = self.next_player==Player.Attacker
-        depth = self.options.max_depth
+        max_depth = self.options.max_depth
         
-        (score,best_move) = self.minimax(self, depth ,maximizing_player)
+        for depth in range(1,max_depth+1):
+            self.current_depth = depth
+            (score, move) = self.minimax(self, depth,maximizing_player)
+            if self.is_time_out:
+                self.is_time_out = False                
+                return (best_score, best_move)
+            else:            
+                (best_score, best_move) = (score,move)
         
-        return (score,best_move)
+        return (best_score, best_move)
 
     def update_average_branching(self, branch_factor):
         self.stats.average_branching_factor = (self.stats.average_branching_factor*self.stats.average_branching_size + branch_factor) / (self.stats.average_branching_size+1)
         self.stats.average_branching_size +=1
+    
+    def update_evaluations_per_depth(self):
+        if self.stats.evaluations_per_depth.get(self.current_depth) is None:
+                self.stats.evaluations_per_depth[self.current_depth] = 0
+        self.stats.evaluations_per_depth[self.current_depth] += 1
     
     def suggest_move(self) -> CoordPair | None:
         """Suggest the next move using minimax alpha beta."""
