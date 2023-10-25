@@ -927,23 +927,48 @@ def main():
     game_type_str = str(options.game_type)
     max_turns_str = str(options.max_turns)
 
+    
     P1 = "max_time: " + max_time_str + "\n"
-    P2 = "game_type: " + game_type_str + "\n" + "Player1 = H, Player2 = H" + "\n"
-    P3 = "max_turns: " + max_turns_str + "\n"
-    P4 = "the winner is: " + winner.name + "\n in " + str(game.turns_played) + " turns"
+    P2 = "max_turns: " + max_turns_str + "\n"
+
+    if(game.options.alpha_beta):
+        alpha_beta_output = "\nalpha-beta is on"
+    else:
+        alpha_beta_output = "\nalpha-beta is off"
+
+    if game_type == GameType.AttackerVsComp:
+        P3 = alpha_beta_output
+        P4 = "\ngame_type: Player1 = H, Player2 = AI" + "\n"
+        P5 = f"\nHeuristic e{options.heuristic}"
+    elif game_type == GameType.CompVsDefender:
+        P3 = alpha_beta_output
+        P4 = "\ngame_type: Player1 = AI, Player2 = H" + "\n"
+        P5 = f"\nHeuristic e{options.heuristic}"
+    elif game_type == GameType.AttackerVsDefender:
+        P3 = ""
+        P4 = "\ngame_type: Player1 = H, Player2 = H" + "\n"
+        P5 = ""
+    elif game_type == GameType.CompVsComp:
+        P3 = alpha_beta_output
+        P4= "\ngame_type: Player1 = AI, Player2 = AI" + "\n"
+        P5 = f"\nHeuristic e{options.heuristic}"
+
+    
+    #P6 = "The winner of the game is: " + winner.name + " in " + str(game.turns_played) + " turns"
+    P6 =  winner.name + " wins in " + str(game.turns_played) + " turns"
 
 
-    output_file_name = f"gameTrace-false-{game.options.max_time}-{game.options.max_turns}.txt"
+    output_file_name = f"gameTrace-{str(game.options.alpha_beta).lower()}-{game.options.max_time}-{game.options.max_turns}.txt"
     with open(output_file_name, 'w') as output_file:
         output_file.write("The game parameters" + "\n" + "\n")
-        output_file.write(P1 + P2 + P3 + "\n" + "\n")
+        output_file.write(P1 + P2 + P3 + P4 + P5 + "\n" + "\n")
 
         output_file.write("Initial Board Configuration" + "\n" + "\n")
         for action in game_actions:
             output_file.write(action + "\n")
 
         output_file.write("\n" + "\n")
-        output_file.write(P4)
+        output_file.write(P6)
 
         # Close the output file
     output_file.close()
