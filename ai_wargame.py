@@ -303,6 +303,10 @@ class Game:
 
     actions: list[str] = field(default_factory=list)  # Store game actions
 
+    is_time_out: bool = False
+    current_start_time: datetime = field(init=False)
+    current_depth : int = 0
+
     def __post_init__(self):
         """Automatically called after class init to set up the default board state."""
 
@@ -674,21 +678,35 @@ class Game:
   
     def alpha_beta_move(self) -> Tuple[int, CoordPair | None]:
         """Alpha beta move"""
-        origin = self        
-        depth = self.options.max_depth        
+        origin = self
+        max_depth = self.options.max_depth
         alpha = MIN_HEURISTIC_SCORE
         beta = MAX_HEURISTIC_SCORE
         maximizingPlayer = origin.next_player==Player.Attacker
         
-        (score, move) = self.alpha_beta(origin, depth, alpha, beta , maximizingPlayer)
-
-        return (score, move)
-        
-        
+        for depth in range(1,max_depth+1):
+            self.current_depth = depth
+            (score, move) = self.alpha_beta(origin, depth, alpha, beta , maximizingPlayer)
+            if self.is_time_out:
+                self.is_time_out = False                
+                return (best_score, best_move)
+            else:            
+                (best_score, best_move) = (score,move)
+                
+        return (best_score, best_move)
+    
     def alpha_beta(self, node:Game ,depth:int, alpha:int, beta:int, maximizingPlayer:bool) -> Tuple[int,CoordPair]:
+        
+        elapsed_seconds = (datetime.now() - self.current_start_time).total_seconds()
+        if(elapsed_seconds >= self.options.max_time):
+            self.is_time_out = True
+            return (0,None)
 
         #If node has_winner it's an end node
         if depth==0 or node.is_finished():
+            if self.stats.evaluations_per_depth.get(self.current_depth) is None:
+                self.stats.evaluations_per_depth[self.current_depth] = 0
+            self.stats.evaluations_per_depth[self.current_depth] += 1            
             return (e(node),None)
               
         if maximizingPlayer:
@@ -698,14 +716,16 @@ class Game:
             for (child,move) in node.get_children():                
                 #store the alpha_beta evaluation value
                 (alpha_beta_result,_) = self.alpha_beta(child, depth-1,alpha, beta, False)
-
+                #Evaluate time_out
+                if(self.is_time_out):
+                    return (alpha_beta_result,_)
                 #update value with max(alpha_beta_result,value_bestmove[0]) and best move
                 if(alpha_beta_result > value_bestmove[0]):
-                    value_bestmove = (alpha_beta_result,move)                    
+                    value_bestmove = (alpha_beta_result,move)
                 #update alpha with max(value_bestmove[0],alpha)    
                 if(value_bestmove[0] > alpha):
                     alpha = value_bestmove[0]
-                if beta <= alpha: #TODO we might can break if there is timeout
+                if beta <= alpha:
                     break                
             return value_bestmove
         else:
@@ -715,6 +735,9 @@ class Game:
                 
                 #store the alpha_beta evaluation value
                 (alpha_beta_result,_) = self.alpha_beta(child, depth-1,alpha, beta, True)
+                #Evaluate time_out
+                if(self.is_time_out):
+                    return (alpha_beta_result,_)
                 #update value with min(alpha_beta_result,value_bestmove[0]) and the best move
                 if(alpha_beta_result < value_bestmove[0]):
                     value_bestmove = (alpha_beta_result, move)                    
@@ -770,27 +793,41 @@ class Game:
         """Suggest the next move using minimax alpha beta."""
         start_time = datetime.now()
 
+        self.current_start_time = start_time
+        
         if self.options.alpha_beta:            
             (score, move) = self.alpha_beta_move()
         #minimax
         else:
             (score, move) = self.minimax_move()
-        #print(move)
         elapsed_seconds = (datetime.now() - start_time).total_seconds()
         self.stats.total_seconds += elapsed_seconds
 
         
         print(f"Heuristic score: {score}")
         self.actions.append(f"Heuristic score: {score}")
+        
+        total_evals = sum(self.stats.evaluations_per_depth.values())
+        print(f"Cumulative evals: {total_evals}")
+        self.actions.append(f"Cumulative evals: {total_evals}")
 
         print(f"Evals per depth: ", end='')
+        evals_per_depth_output = "Cumulative evals by depth: "
+        evals_per_depth_percentage_output = "Cumulative % evals by depth: "
         for k in sorted(self.stats.evaluations_per_depth.keys()):
             print(f"{k}:{self.stats.evaluations_per_depth[k]} ", end='')
+            evals_per_depth_output += f"{k}:{self.stats.evaluations_per_depth[k]} "
+            evals_per_depth_percentage_output += f"{k}:{round((self.stats.evaluations_per_depth[k]/total_evals)*100,2)} % "            
         print()
-        total_evals = sum(self.stats.evaluations_per_depth.values())
+
+        self.actions.append(evals_per_depth_output)
+        self.actions.append(evals_per_depth_percentage_output)
+        print(evals_per_depth_percentage_output)
+        
         if self.stats.total_seconds > 0:
             print(f"Eval perf.: {total_evals / self.stats.total_seconds / 1000:0.1f}k/s")
         print(f"Elapsed time: {elapsed_seconds:0.1f}s")
+        print(f"Elapsed time ms: {(elapsed_seconds-self.options.max_time)*1000:0.1f}ms")
         self.actions.append(f"Time for this action : {elapsed_seconds:0.1f}s")
         return move
 
@@ -957,7 +994,6 @@ def main():
         P5 = f"\nHeuristic e{options.heuristic}"
 
     
-    #P6 = "The winner of the game is: " + winner.name + " in " + str(game.turns_played) + " turns"
     P6 =  winner.name + " wins in " + str(game.turns_played) + " turns"
 
 
