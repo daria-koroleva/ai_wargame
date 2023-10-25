@@ -724,6 +724,46 @@ class Game:
                     break
             return value_bestmove
     
+    def minimax(self,game:Game, depth:int, maximizing_player:bool)->Tuple[int,CoordPair]:
+        '''minmax algorithm'''                
+        if depth == 0 or game.is_finished():
+            return (e(game),None)
+
+        if maximizing_player:
+            max_eval = MIN_HEURISTIC_SCORE
+            best_move = None
+
+            for(child, move) in game.get_children():
+
+                (eval,_) = self.minimax(child, depth - 1, False)
+                #update max eval and best move   
+                if(eval > max_eval):
+                    max_eval = eval
+                    best_move = move
+            return (max_eval, best_move)
+        else:            
+            min_eval = MAX_HEURISTIC_SCORE
+            best_move = None
+
+            for(child, move) in game.get_children():
+                (eval,_) = self.minimax(child, depth - 1, True)
+
+                #update min eval and best move
+                if( eval < min_eval):
+                    min_eval = eval
+                    best_move = move
+            return ( min_eval, best_move)
+
+
+    def minimax_move(self) -> Tuple[int, CoordPair | None]:
+        '''Minimax move'''        
+        #Attacker is max player and defender is min
+        maximizing_player = self.next_player==Player.Attacker
+        depth = self.options.max_depth
+        
+        (score,best_move) = self.minimax(self, depth ,maximizing_player)
+        
+        return (score,best_move)
 
     def suggest_move(self) -> CoordPair | None:
         """Suggest the next move using minimax alpha beta."""
@@ -732,9 +772,8 @@ class Game:
         if self.options.alpha_beta:            
             (score, move) = self.alpha_beta_move()
         #minimax
-        else:            
-            (score, move) = self.random_move()
-
+        else:
+            (score, move) = self.minimax_move()
         #print(move)
         elapsed_seconds = (datetime.now() - start_time).total_seconds()
         self.stats.total_seconds += elapsed_seconds
