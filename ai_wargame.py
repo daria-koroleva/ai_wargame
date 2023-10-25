@@ -20,14 +20,14 @@ def e(game:Game)->int:
         return e0(game)
     elif game.options.heuristic == 1:        
         return e1(game)
-    elif game.options.heuristic == 2:
-        #TODO add and update new heuristics
-        return e1(game)
+    elif game.options.heuristic == 2:        
+        return e2(game)
     else:
         return e0(game)
 
 
 def e0(game) -> int:
+    '''This heuristic give score to each player by rewarding the number and type of units'''
     count_attacker=0
     for (_,unit) in game.player_units(Player.Attacker):
         if unit.type in {UnitType.Virus, UnitType.Tech,UnitType.Firewall,UnitType.Program}:
@@ -44,6 +44,7 @@ def e0(game) -> int:
 
 
 def e1(game) -> int:
+    '''This heuristic give score to each player by rewarding the number, type and healths of units'''
     count_attacker=0
     for (_,unit) in game.player_units(Player.Attacker):
         if unit.type in {UnitType.Virus, UnitType.Tech,UnitType.Firewall,UnitType.Program}:
@@ -57,6 +58,65 @@ def e1(game) -> int:
         elif unit.type == UnitType.AI:            
             count_defender+=999*unit.health
     return count_attacker-count_defender
+
+def e2(game:Game) -> int:
+    '''This heuristic give score to each player by rewarding: 
+            - The number of units
+            - The type of units
+            - The healths of units
+            - The danger risk given by surrounding adversary units
+            - The defense effect of friendly units surrounding the AI unit
+            - The repair effect of friendly units   
+    '''
+    
+    count_attacker=0                        
+    count_defender=0
+    
+    count_attacker = helper_e2(game,Player.Attacker)
+    count_defender = helper_e2(game,Player.Defender)
+
+    return count_attacker-count_defender
+
+
+def helper_e2(game:Game, player:Player) -> int:
+    '''Calculation of score e2 by player'''
+    count=0
+    for (coord,unit) in game.player_units(player):
+        if unit.type in {UnitType.Firewall,UnitType.Program}:
+            count+=3*unit.health
+        elif unit.type in {UnitType.Virus, UnitType.Tech}:
+            count+=9*unit.health
+        elif unit.type == UnitType.AI:
+            count+=99999*unit.health
+
+        for coord_adj in coord.iter_range(1):
+            unit_adj = game.get(coord_adj)
+            #If in danger reduce score
+            #If there is an adversary closed to the unit
+            if(unit_adj is not None and unit_adj.player != game.next_player):
+                #It can kill the unit then unit is in danger
+                if (unit_adj.damage_amount(unit) >= unit.health):
+                    if unit.type in {UnitType.Firewall,UnitType.Program}:
+                        count-=2*unit.health
+                    elif unit.type in {UnitType.Virus, UnitType.Tech}:
+                        count-=5*unit.health
+                    elif unit.type == UnitType.AI:
+                        count-=9999*unit.health
+            #if the unit is surronded by friendly units          
+            elif(unit_adj is not None and unit_adj.player == game.next_player):
+                #for every friendly unit adjacent to the AI increase score
+                if unit.type == UnitType.AI:
+                        count+=999
+                #If this friendly adjacent unit can repair the increase score
+                repair = unit_adj.repair_amount(unit)
+                if ( repair > 0 and unit.health<9):
+                    if unit.type in {UnitType.Firewall,UnitType.Program}:
+                        count+=2*repair
+                    elif unit.type in {UnitType.Virus, UnitType.Tech}:
+                        count+=5*repair
+                    elif unit.type == UnitType.AI:
+                        count+=9999*repair            
+    return count    
 
 class UnitType(Enum):
     """Every unit type."""
@@ -305,7 +365,7 @@ class Game:
     _defender_has_ai: bool = True
 
     actions: list[str] = field(default_factory=list)  # Store game actions
-
+    #indicate if a suggestion move in progress is time out
     is_time_out: bool = False
     current_start_time: datetime = field(init=False)
     current_depth : int = 0
@@ -648,7 +708,7 @@ class Game:
             yield move.clone()
 
     def get_children(self) -> Iterable[Tuple[Game,CoordPair]]:
-        """Generate valid move candidates for the next player."""
+        """Generate valid game state candidates from a parent"""
         move = CoordPair()        
         for (src, _) in self.player_units(self.next_player):
             move.src = src
@@ -687,6 +747,9 @@ class Game:
         beta = MAX_HEURISTIC_SCORE
         maximizingPlayer = origin.next_player==Player.Attacker
         
+        #Iterate depth from 1 to max_depth if time permit
+        #The loop will be interrupted if the max_time is up
+        #Each depth will give a better move and score        
         for depth in range(1,max_depth+1):
             self.current_depth = depth
             (score, move) = self.alpha_beta(origin, depth, alpha, beta , maximizingPlayer)
@@ -704,10 +767,12 @@ class Game:
         elapsed_seconds = (datetime.now() - self.current_start_time).total_seconds()
         if(elapsed_seconds >= self.options.max_time_adjusted):
             self.is_time_out = True
+            #Interrupt process
             return (0,None)
 
         #If node has_winner it's an end node
         if depth==0 or node.is_finished():
+            #add one count to the eval for the current depth in progress
             self.update_evaluations_per_depth()         
             return (e(node),None)
               
@@ -720,7 +785,7 @@ class Game:
                 branch_factor+=1
                 #store the alpha_beta evaluation value
                 (alpha_beta_result,_) = self.alpha_beta(child, depth-1,alpha, beta, False)
-                #check time_out
+                #check time_out and break
                 if(self.is_time_out):
                     return (alpha_beta_result,_)
                 #update value with max(alpha_beta_result,value_bestmove[0]) and best move
@@ -729,10 +794,11 @@ class Game:
                 #update alpha with max(value_bestmove[0],alpha)    
                 if(value_bestmove[0] > alpha):
                     alpha = value_bestmove[0]
+                #pruning
                 if beta <= alpha:
                     break
             self.update_average_branching(branch_factor)
-            return value_bestmove
+            return value_bestmove        
         else:
             value_bestmove = (MAX_HEURISTIC_SCORE,None)
 
@@ -749,7 +815,8 @@ class Game:
                 #update beta with min(value_bestmove[0],beta)
                 if(value_bestmove[0] < beta):
                     beta = value_bestmove[0]
-                if beta <= alpha:                    
+                #pruning
+                if beta <= alpha:
                     break
             self.update_average_branching(branch_factor)    
             return value_bestmove
@@ -811,6 +878,9 @@ class Game:
         maximizing_player = self.next_player==Player.Attacker
         max_depth = self.options.max_depth
         
+        #Iterate depth from 1 to max_depth if time permit
+        #The loop will be interrupted if the max_time is up
+        #Each depth will give a better move and score
         for depth in range(1,max_depth+1):
             self.current_depth = depth
             (score, move) = self.minimax(self, depth,maximizing_player)
@@ -823,12 +893,16 @@ class Game:
         return (best_score, best_move)
 
     def update_average_branching(self, branch_factor):
+        '''update average branching'''
         self.stats.average_branching_factor = (self.stats.average_branching_factor*self.stats.average_branching_size + branch_factor) / (self.stats.average_branching_size+1)
         self.stats.average_branching_size +=1
     
     def update_evaluations_per_depth(self):
+        '''Add 1 count to the evaliation at depth'''
+        #initialize depth in dictionary
         if self.stats.evaluations_per_depth.get(self.current_depth) is None:
                 self.stats.evaluations_per_depth[self.current_depth] = 0
+        #update evaluation to current depth by adding one
         self.stats.evaluations_per_depth[self.current_depth] += 1
     
     def suggest_move(self) -> CoordPair | None:
@@ -842,6 +916,8 @@ class Game:
         #minimax
         else:
             (score, move) = self.minimax_move()
+
+        #Calculate time used by computer to suggest the move
         elapsed_seconds = (datetime.now() - start_time).total_seconds()
         self.stats.total_seconds += elapsed_seconds
 
