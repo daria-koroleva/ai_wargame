@@ -459,8 +459,7 @@ class Game:
             self.set(coords.dst, self.get(coords.src))
             self.set(coords.src, None)
             action_taken_str = f"{self.next_player.name} - turn #{self.turns_played+1}: move {coords.src} -> {coords.dst}"            
-            self.actions.append(action_taken_str)
-            return (True, "")
+            return (True, action_taken_str)
 
         elif self.is_valid_attack(coords):
             unit_s = self.get(coords.src)
@@ -470,8 +469,7 @@ class Game:
             self.mod_health(coords.src, -damage_on_s)
             self.mod_health(coords.dst, -damage_on_t)
             action_taken_str = f"{self.next_player.name} - turn #{self.turns_played+1}: attack {coords.src} -> {coords.dst}"
-            self.actions.append(action_taken_str)
-            return (True, "")
+            return (True, action_taken_str)
 
         elif self.is_valid_repair(coords):
             unit_s = self.get(coords.src)
@@ -479,16 +477,16 @@ class Game:
             repair_on_t = unit_s.repair_amount(unit_t)
             self.mod_health(coords.dst, repair_on_t)
             action_taken_str = f"{self.next_player.name} - turn #{self.turns_played+1}: repair {coords.src} -> {coords.dst}"
-            self.actions.append(action_taken_str)
-            return (True, "")
+            return (True, action_taken_str)
         elif self.can_self_destruct(coords):
             self.mod_health(coords.src, -9)
             for surrounding_coord in coords.src.iter_range(1):
                 self.mod_health(surrounding_coord, -2)
-            action_taken_str = f"{self.next_player.name} - turn #{self.turns_played+1}: self-destruct {coords.src} -> {coords.dst}"
-            self.actions.append(action_taken_str)
-            return (True, "")
-        return (False, "invalid move")
+            action_taken_str = f"{self.next_player.name} - turn #{self.turns_played+1}: self-destruct {coords.src} -> {coords.dst}"            
+            return (True, action_taken_str)
+        
+        action_taken_str = f"{self.next_player.name} performed an invalid move {coords.src} -> {coords.dst}"
+        return (False, action_taken_str)
 
     def next_turn(self):
         """Transitions game to the next turn."""
@@ -576,6 +574,7 @@ class Game:
                 mv = self.get_move_from_broker()
                 if mv is not None:
                     (success, result) = self.perform_move(mv)
+                    self.actions.append(result)
                     print(f"Broker {self.next_player.name}: ", end='')                    
                     print(result)                    
                     if success:
@@ -586,6 +585,7 @@ class Game:
             while True:
                 mv = self.read_move()
                 (success, result) = self.perform_move(mv)
+                self.actions.append(result)
                 if success:
                     print(f"Player {self.next_player.name}: ", end='')
                     print(result)
@@ -599,6 +599,7 @@ class Game:
         mv = self.suggest_move()
         if mv is not None:
             (success, result) = self.perform_move(mv)
+            self.actions.append(result)
             if success:
                 print(f"Computer {self.next_player.name}: ", end='')
                 print(result)
