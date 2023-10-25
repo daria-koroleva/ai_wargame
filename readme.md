@@ -11,5 +11,4 @@ BrainBoost
 ## Team members
 
 - Daria Koroleva 40096402
-- Safaa Kadhim 40123596
 - Marian Maksimos 40067018

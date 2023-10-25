@@ -682,7 +682,6 @@ class Game:
         (score, move) = self.alpha_beta(origin, depth, alpha, beta , maximizingPlayer)
 
         return (score, move)
-
         
         
     def alpha_beta(self, node:Game ,depth:int, alpha:int, beta:int, maximizingPlayer:bool) -> Tuple[int,CoordPair]:
@@ -775,7 +774,7 @@ class Game:
         #minimax
         else:
             (score, move) = self.minimax_move()
-        print(move)
+        #print(move)
         elapsed_seconds = (datetime.now() - start_time).total_seconds()
         self.stats.total_seconds += elapsed_seconds
 
